@@ -70,13 +70,13 @@ default_params = sm.ModelParams(
 # Streamlit sidebar for interactive parameter selection
 st.sidebar.title("Model Parameters")
 
-J_val = st.sidebar.slider("J_val", 0.01, 0.1, 0.05, step=0.01)
+J_val = st.sidebar.slider("J_val", 0.001, 0.9, 0.05, step=0.001)
 g_val = st.sidebar.slider("g_val", 0.0, 1.0, 0.0, step=0.1)
-cavity_freq = st.sidebar.slider("cavity_freq", 5.0, 7.0, 6.0, step=0.1)
-w_y = st.sidebar.slider("w_y", 5.0, 7.0, 5.9, step=0.1)
-gamma_x = st.sidebar.slider("gamma_vec[0]", 0.01, 0.1, 0.04, step=0.01)
-gamma_y = st.sidebar.slider("gamma_vec[1]", 0.01, 0.1, 0.04, step=0.01)
-phi_val = st.sidebar.slider("phi_val", 0.0, 2 * np.pi, 2 * np.pi - 0.76, step=0.1)
+cavity_freq = st.sidebar.slider("cavity_freq", 5.7, 6.3, 6.0, step=0.001)
+w_y = st.sidebar.slider("w_y", 5.7, 6.3, 6.0, step=0.001)
+gamma_x = st.sidebar.slider("gamma_vec[0]", 0.001, 0.9, 0.04, step=0.001)
+gamma_y = st.sidebar.slider("gamma_vec[1]", 0.001, 0.9, 0.04, step=0.001)
+phi_val = st.sidebar.slider("phi_val", 0.0, 2 * np.pi, 2 * np.pi - 0.76, step=0.001)
 
 # Drive/Readout configuration checkboxes
 st.sidebar.title("Drive/Readout Configurations")
