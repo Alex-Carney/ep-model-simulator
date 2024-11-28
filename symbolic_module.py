@@ -15,6 +15,7 @@ class ModelSymbolics:
     F: sp.MutableDenseMatrix
     phi_val: sp.Symbol
     steady_state_eqns: sp.Expr
+    cavity_dynamics_matrix: sp.MutableDenseMatrix  # Added this line
 
 
 @dataclass
@@ -69,69 +70,11 @@ def setup_symbolic_equations() -> ModelSymbolics:
     steady_state_eqns = cavity_dynamics_matrix.inv() * F
     steady_state_eqns_simplified = sp.simplify(steady_state_eqns)
 
-    return ModelSymbolics(J, w_f, w_y, gam_y, g, w0, gamma, F, phi_val, steady_state_eqns_simplified)
-
-
-def get_steady_state_response_NR(symbols_dict: ModelSymbolics, params: ModelParams) -> sp.Expr:
-    """
-    Returns a function that computes the steady-state response for the non-PT symmetric case.
-    """
-    # Unpack symbols
-    w0 = symbols_dict.w0
-    gamma = symbols_dict.gamma
-    F = symbols_dict.F
-    steady_state_eqns = symbols_dict.steady_state_eqns
-
-    # Substitutions for non-PT symmetric case
-    substitutions = {
-        symbols_dict.w0[0]: params.cavity_freq,
-        symbols_dict.w0[1]: symbols_dict.w_y,  # Keep w_y symbolic
-        symbols_dict.J: params.J_val,
-        symbols_dict.g: params.g_val,
-        F[0]: params.drive_vector[0],
-        F[1]: params.drive_vector[1],
-        gamma[0]: params.gamma_vec[0],
-        gamma[1]: params.gamma_vec[1],
-        symbols_dict.phi_val: params.phi_val
-    }
-
-    ss_eqns_instantiated = steady_state_eqns.subs(substitutions)
-    ss_eqn = (params.readout_vector[0] * ss_eqns_instantiated[0] +
-              params.readout_vector[1] * ss_eqns_instantiated[1])
-
-    # Lambdify with w_y and w_f as variables
-    return sp.lambdify((symbols_dict.w_y, symbols_dict.w_f), ss_eqn, 'numpy')
-
-
-def get_steady_state_response_PT(symbols_dict: ModelSymbolics, params: ModelParams) -> sp.Expr:
-    """
-    Returns a function that computes the steady-state response for the PT symmetric case.
-    """
-    # Unpack symbols
-    w0 = symbols_dict.w0
-    gamma = symbols_dict.gamma
-    F = symbols_dict.F
-    steady_state_eqns = symbols_dict.steady_state_eqns
-
-    # Substitutions for PT symmetric case
-    substitutions = {
-        w0[0]: params.cavity_freq,
-        w0[1]: params.w_y,
-        symbols_dict.J: params.J_val,
-        symbols_dict.g: params.g_val,
-        F[0]: params.drive_vector[0],
-        F[1]: params.drive_vector[1],
-        gamma[0]: params.gamma_vec[0],
-        gamma[1]: symbols_dict.gam_y,  # Keep gam_y symbolic
-        symbols_dict.phi_val: params.phi_val
-    }
-
-    ss_eqns_instantiated = steady_state_eqns.subs(substitutions)
-    ss_eqn = (params.readout_vector[0] * ss_eqns_instantiated[0] +
-              params.readout_vector[1] * ss_eqns_instantiated[1])
-
-    # Lambdify with gam_y and w_f as variables
-    return sp.lambdify((symbols_dict.gam_y, symbols_dict.w_f), ss_eqn, 'numpy')
+    # Return the updated ModelSymbolics with cavity_dynamics_matrix
+    return ModelSymbolics(
+        J, w_f, w_y, gam_y, g, w0, gamma, F, phi_val,
+        steady_state_eqns_simplified, cavity_dynamics_matrix
+    )
 
 
 def get_steady_state_response_transmission(symbols_dict: ModelSymbolics, params: ModelParams) -> sp.Expr:
@@ -144,7 +87,7 @@ def get_steady_state_response_transmission(symbols_dict: ModelSymbolics, params:
     F = symbols_dict.F
     steady_state_eqns = symbols_dict.steady_state_eqns
 
-    # Substitutions for PT symmetric case
+    # Substitutions for transmission case
     substitutions = {
         w0[0]: params.cavity_freq,
         w0[1]: params.w_y,
@@ -161,48 +104,55 @@ def get_steady_state_response_transmission(symbols_dict: ModelSymbolics, params:
     ss_eqn = (params.readout_vector[0] * ss_eqns_instantiated[0] +
               params.readout_vector[1] * ss_eqns_instantiated[1])
 
-    # Lambdify with gam_y and w_f as variables
+    # Lambdify with w_f as variable
     return sp.lambdify(symbols_dict.w_f, ss_eqn, 'numpy')
-
-
-def compute_photon_numbers_NR(ss_response_func, w_y_vals, w_f_vals):
-    """
-    Computes the photon numbers for the non-PT symmetric case.
-    ss_response_func: steady-state response function from get_steady_state_response_non_PT
-    w_y_vals: array of YIG frequencies
-    w_f_vals: array of LO frequencies
-    Returns a 2D array of photon numbers.
-    """
-    W_Y, W_F = np.meshgrid(w_y_vals, w_f_vals, indexing='ij')
-    photon_numbers_complex = ss_response_func(W_Y, W_F)
-    photon_numbers_real = np.abs(photon_numbers_complex) ** 2
-    return photon_numbers_real
-
-
-def compute_photon_numbers_PT(ss_response_func, gam_y_vals, w_f_vals):
-    """
-    Computes the photon numbers for the PT symmetric case.
-    ss_response_func: steady-state response function from get_steady_state_response_PT
-    gam_y_vals: array of gamma_y values
-    w_f_vals: array of LO frequencies
-    Returns a 2D array of photon numbers.
-    """
-    GAM_Y, W_F = np.meshgrid(gam_y_vals, w_f_vals, indexing='ij')
-    photon_numbers_complex = ss_response_func(GAM_Y, W_F)
-    photon_numbers_real = np.abs(photon_numbers_complex) ** 2
-    return photon_numbers_real
 
 
 def compute_photon_numbers_transmission(ss_response_func, w_f_vals):
     """
     Computes the photon numbers for the transmission case.
-    ss_response_func: steady-state response function from get_st
+    ss_response_func: steady-state response function from get_steady_state_response_transmission
     w_f_vals: array of LO frequencies
-    Returns a 2D array of photon numbers.
+    Returns an array of photon numbers.
     """
     photon_numbers_complex = ss_response_func(w_f_vals)
     photon_numbers_real = np.abs(photon_numbers_complex) ** 2
     return photon_numbers_real
+
+
+def get_cavity_dynamics_eigenvalues_numeric(symbols_dict: ModelSymbolics, params: ModelParams):
+    """
+    Computes the eigenvalues of the cavity dynamics matrix with given parameters.
+    """
+    # Unpack symbols
+    cavity_dynamics_matrix = symbols_dict.cavity_dynamics_matrix
+    w0 = symbols_dict.w0
+    gamma = symbols_dict.gamma
+    phi_val = symbols_dict.phi_val
+    w_f = symbols_dict.w_f
+
+    # Substitutions
+    substitutions = {
+        w0[0]: params.cavity_freq,
+        w0[1]: params.w_y,
+        symbols_dict.J: params.J_val,
+        gamma[0]: params.gamma_vec[0],
+        gamma[1]: params.gamma_vec[1],
+        phi_val: params.phi_val,
+        w_f: params.cavity_freq  # Assuming w_f equals cavity frequency
+    }
+
+    # Substitute into cavity_dynamics_matrix
+    cavity_dynamics_matrix_sub = cavity_dynamics_matrix.subs(substitutions)
+
+    # Convert to numpy array
+    cavity_dynamics_matrix_num = np.array(cavity_dynamics_matrix_sub.evalf(), dtype=complex)
+
+    # Compute eigenvalues
+    eigenvalues = np.linalg.eigvals(cavity_dynamics_matrix_num)
+
+    # Return eigenvalues
+    return eigenvalues
 
 
 # Example usage
@@ -211,36 +161,26 @@ if __name__ == "__main__":
     symbols_dict = setup_symbolic_equations()
 
     # Define parameters
-    params = {
-        'J_val': 0.06,
-        'g_val': 0.025 - 0.04,
-        'cavity_freq': 6.0,  # GHz
-        'w_y': sp.symbols('w_y'),  # Keep symbolic for lambdify
-        'gamma_vec': np.array([0.025, 0.04]),
-        'drive_vector': np.array([1, 0]),
-        'readout_vector': np.array([1, 0]),
-        'phi_val': np.pi - 0.1,
-    }
+    params = ModelParams(
+        J_val=0.06,
+        g_val=0.025 - 0.04,
+        cavity_freq=6.0,  # GHz
+        w_y=6.0,  # GHz
+        gamma_vec=np.array([0.025, 0.04]),
+        drive_vector=np.array([1, 0]),
+        readout_vector=np.array([1, 0]),
+        phi_val=np.pi - 0.1,
+    )
 
-    # Non-PT symmetric case
-    ss_response_non_PT = get_steady_state_response_NR(symbols_dict, params)
+    # Transmission case
+    ss_response = get_steady_state_response_transmission(symbols_dict, params)
 
-    # Define frequency ranges
-    yig_freqs = np.linspace(5.6, 6.4, 1000)  # YIG frequencies in GHz
+    # Define LO frequencies
     lo_freqs = np.linspace(5.6, 6.4, 1000)  # LO frequencies in GHz
 
-    # Compute photon numbers for non-PT symmetric case
-    photon_numbers_non_PT = compute_photon_numbers_NR(ss_response_non_PT, yig_freqs, lo_freqs)
+    # Compute photon numbers for transmission case
+    photon_numbers = compute_photon_numbers_transmission(ss_response, lo_freqs)
 
-    # PT symmetric case
-    params_PT = params.copy()
-    ss_response_PT = get_steady_state_response_PT(symbols_dict, params_PT)
-
-    # Define gamma_y values for PT symmetric case
-    gamma_y_vals = np.linspace(0.001, 0.05, 1000)
-
-    # Compute photon numbers for PT symmetric case
-    photon_numbers_PT = compute_photon_numbers_PT(ss_response_PT, gamma_y_vals, lo_freqs)
-
-    # At this point, you have the photon_numbers_non_PT and photon_numbers_PT arrays.
-    # You can proceed with plotting or further analysis as needed.
+    # Compute eigenvalues
+    eigenvalues = get_cavity_dynamics_eigenvalues_numeric(symbols_dict, params)
+    print("Eigenvalues:", eigenvalues)

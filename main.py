@@ -131,8 +131,25 @@ lo_freqs = np.linspace(5.6, 6.4, 1000)
 # List of configurations
 params_list = [params_10, params_11, params_01]
 
+# Compute eigenvalues and stability status
+configs = [
+    {'params': params_10, 'key': (1, 0), 'label': "Drive/Readout [1,0]", 'unstable': None},
+    {'params': params_11, 'key': (1, 1), 'label': "Drive/Readout [1,1]", 'unstable': None},
+    {'params': params_01, 'key': (0, 1), 'label': "Drive/Readout [0,1]", 'unstable': None},
+]
+
+selected_configs = []
+
+for config in configs:
+    key = config['key']
+    if config_flags[key]:
+        eigenvalues = sm.get_cavity_dynamics_eigenvalues_numeric(symbols_dict, config['params'])
+        unstable = any(ev.real > 0 for ev in eigenvalues)
+        config['unstable'] = unstable
+        selected_configs.append(config)
+
 # Display plot and computed values
-st.title("EP Model Viz")
+st.title("EP Model Visualization")
 
 # Compute additional values for display
 kappa = gamma_x - gamma_y  # Difference between gamma_vec[0] and gamma_vec[1]
@@ -141,7 +158,7 @@ delta = cavity_freq - w_y  # Difference between cavity_freq and w_y
 # Display computed values as markdown text
 st.markdown(f"""
 ### Parameters:
-- $\\Kappa = {kappa:.2f} \\ \\mathrm{{MHz}}$
+- $\\kappa = {kappa:.2f} \\ \\mathrm{{MHz}}$
 - $\\Delta = {delta:.2f} \\ \\mathrm{{GHz}}$
 - $J = {J_val:.2f} \\ \\mathrm{{MHz}}$
 - $\\phi = {phi_val:.2f}$
@@ -151,3 +168,16 @@ st.markdown(f"""
 fig = compute_and_plot(params_list, lo_freqs, config_flags)
 st.plotly_chart(fig)
 
+# Display stability status
+st.title("System Stability")
+
+if len(selected_configs) > 0:
+    cols = st.columns(len(selected_configs))
+
+    for i, config in enumerate(selected_configs):
+        with cols[i]:
+            st.markdown(f"#### {config['label']}")
+            if config['unstable']:
+                st.markdown("<span style='color: red;'>🔴 **Unstable**</span>", unsafe_allow_html=True)
+            else:
+                st.markdown("<span style='color: green;'>🟢 **Stable**</span>", unsafe_allow_html=True)
